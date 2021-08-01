@@ -1,0 +1,438 @@
+Index: server/login-basic/src/main/java/com/sp/fc/web/controller/HomeController.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package com.sp.fc.web.controller;\r\n\r\n\r\nimport org.springframework.security.access.prepost.PreAuthorize;\r\nimport org.springframework.stereotype.Controller;\r\nimport org.springframework.ui.Model;\r\nimport org.springframework.web.bind.annotation.GetMapping;\r\n\r\n@Controller\r\npublic class HomeController {\r\n\r\n    @GetMapping(\"/\")\r\n    public String main(){\r\n        return \"index\";\r\n    }\r\n\r\n    @GetMapping(\"/login\")\r\n    public String login(){\r\n        return \"loginForm\";\r\n    }\r\n\r\n    @GetMapping(\"/login-error\")\r\n    public String loginError(Model model){\r\n        model.addAttribute(\"loginError\", true);\r\n        return \"loginForm\";\r\n    }\r\n\r\n    @GetMapping(\"/access-denied\")\r\n    public String accessDenied(){\r\n        return \"AccessDenied\";\r\n    }\r\n\r\n    @PreAuthorize(\"hasAnyAuthority('ROLE_USER')\")\r\n    @GetMapping(\"/user-page\")\r\n    public String userPage(){\r\n        return \"UserPage\";\r\n    }\r\n\r\n    @PreAuthorize(\"hasAnyAuthority('ROLE_ADMIN')\")\r\n    @GetMapping(\"/admin-page\")\r\n    public String adminPage(){\r\n        return \"AdminPage\";\r\n    }\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/server/login-basic/src/main/java/com/sp/fc/web/controller/HomeController.java b/server/login-basic/src/main/java/com/sp/fc/web/controller/HomeController.java
+--- a/server/login-basic/src/main/java/com/sp/fc/web/controller/HomeController.java	(revision cccbca5e395143c2c6e790479250e9439acd7e82)
++++ b/server/login-basic/src/main/java/com/sp/fc/web/controller/HomeController.java	(date 1627823594006)
+@@ -2,9 +2,12 @@
+ 
+ 
+ import org.springframework.security.access.prepost.PreAuthorize;
++import org.springframework.security.core.Authentication;
++import org.springframework.security.core.context.SecurityContextHolder;
+ import org.springframework.stereotype.Controller;
+ import org.springframework.ui.Model;
+ import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.ResponseBody;
+ 
+ @Controller
+ public class HomeController {
+@@ -25,6 +28,12 @@
+         return "loginForm";
+     }
+ 
++    @ResponseBody
++    @GetMapping("/auth")
++    public Authentication auth(){
++        return SecurityContextHolder.getContext().getAuthentication(); //json객체로 리턴
++    }
++
+     @GetMapping("/access-denied")
+     public String accessDenied(){
+         return "AccessDenied";
+Index: server/login-basic/src/main/java/com/sp/fc/web/config/SecurityConfig.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package com.sp.fc.web.config;\r\n\r\nimport org.springframework.security.config.annotation.web.builders.HttpSecurity;\r\nimport org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;\r\nimport org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;\r\n\r\n@EnableWebSecurity(debug = true)\r\npublic class SecurityConfig extends WebSecurityConfigurerAdapter {\r\n\r\n\r\n    @Override\r\n    protected void configure(HttpSecurity http) throws Exception {\r\n        http\r\n                .authorizeRequests(request->{\r\n                    request\r\n                            .antMatchers(\"/**\").permitAll()\r\n                            ;\r\n                })\r\n                ;\r\n    }\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/server/login-basic/src/main/java/com/sp/fc/web/config/SecurityConfig.java b/server/login-basic/src/main/java/com/sp/fc/web/config/SecurityConfig.java
+--- a/server/login-basic/src/main/java/com/sp/fc/web/config/SecurityConfig.java	(revision cccbca5e395143c2c6e790479250e9439acd7e82)
++++ b/server/login-basic/src/main/java/com/sp/fc/web/config/SecurityConfig.java	(date 1627823510845)
+@@ -1,21 +1,85 @@
+ package com.sp.fc.web.config;
+ 
++import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
++import org.springframework.context.annotation.Bean;
++import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
++import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
++import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
++import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
++import org.springframework.security.config.annotation.web.builders.WebSecurity;
+ import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+ import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
++import org.springframework.security.core.userdetails.User;
+ 
+ @EnableWebSecurity(debug = true)
++@EnableGlobalMethodSecurity(prePostEnabled = true) //설정된 룰대로 보여줌(controller)
+ public class SecurityConfig extends WebSecurityConfigurerAdapter {
+ 
++//    CsrfFilter csrfFilter;
++//    UsernamePasswordAuthenticationFilter filter;
++    private final CustomAuthDetails customAuthDetails;
++
++    public SecurityConfig(CustomAuthDetails customAuthDetails) {
++        this.customAuthDetails = customAuthDetails;
++    }
++
++
++    @Override
++    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
++        auth
++                .inMemoryAuthentication()
++                .withUser(
++                        User.withDefaultPasswordEncoder() //test에 한정해서 사용
++                                .username("user1")
++                                .password("1111")
++                                .roles("USER")
++                ).withUser(
++                        User.withDefaultPasswordEncoder()
++                                .username("admin")
++                                .password("2222")
++                                .roles("ADMIN")
++                );
++
++    }
++
++    //admin도 유저페이지 접근가능하게 해주라
++    @Bean
++    RoleHierarchy roleHierarchy(){
++        RoleHierarchyImpl roleHierarchy=new RoleHierarchyImpl();
++        roleHierarchy.setHierarchy("ROLE_ADMIN > ROLE_USER"); //다 할수있다 설정
++        return roleHierarchy;
++    }
+ 
+     @Override
+     protected void configure(HttpSecurity http) throws Exception {
+         http
+                 .authorizeRequests(request->{
+                     request
+-                            .antMatchers("/**").permitAll()
+-                            ;
+-                })
+-                ;
++                            .antMatchers("/").permitAll()
++                            .anyRequest().authenticated(); //설정바꾸기
++                })//usernamepassword설정..
++                .formLogin(
++                        login->login.loginPage("/login")
++                                    .permitAll()
++                                    .defaultSuccessUrl("/",false)
++                                    .failureUrl("/login-error")
++                                    .authenticationDetailsSource(customAuthDetails)
++                )//로그인페이지 설정 ..무한루프주의반드시 permitAll()
++                .logout(logout->logout.logoutSuccessUrl("/"))
++                .exceptionHandling(
++                        exception->exception.accessDeniedPage("/access-denied") //접근권한이없다는 페이지로 보낸다..관리자의 경우 유저페이지는 허용해주는데?
++                );
++    }
++
++    @Override
++    public void configure(WebSecurity web) throws Exception {
++        //css에 문제가 생기기때문에 webignore필요
++        web.ignoring()
++                .requestMatchers(
++                        PathRequest.toStaticResources().atCommonLocations()
++                ); //몽땅 웹리소스로 잡아주는게 좋다
++
++
+     }
+ }
+Index: server/login-basic/src/main/resources/templates/index.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><!DOCTYPE html>\r\n<html lang=\"ko\" xmlns:th=\"http://www.thymeleaf.org\" xmlns:sec=\"http://www.thymeleaf.org/extras/spring-security\">\r\n<head>\r\n    <meta charset=\"UTF-8\">\r\n    <title>Title</title>\r\n    <link rel=\"stylesheet\" th:href=\"@{/css/bootstrap.css}\">\r\n    <link rel=\"stylesheet\" th:href=\"@{/css/index.css}\">\r\n</head>\r\n<body>\r\n\r\n<div class=\"container center-contents\">\r\n    <div class=\"row\">\r\n        <h1 class=\"title display-5\"> 메인 페이지 </h1>\r\n    </div>\r\n\r\n    <div class=\"links\">\r\n\r\n        <div class=\"link\">\r\n            <a href=\"/login\">  로그인 </a>\r\n        </div>\r\n        <div class=\"link\">\r\n            <a href=\"/login-error\">  로그인 에러  </a>\r\n        </div>\r\n        <div class=\"link\">\r\n            <a href=\"/access-denied\">  접근 에러  </a>\r\n        </div>\r\n        <div class=\"link\">\r\n            <a href=\"/user-page\">  유저 페이지  </a>\r\n        </div>\r\n        <div class=\"link\">\r\n            <a href=\"/admin-page\">  관리자 로그인 </a>\r\n        </div>\r\n\r\n    </div>\r\n</div>\r\n<script th:src=\"@{/js/bootstrap.js}\" />\r\n</body>\r\n</html>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/server/login-basic/src/main/resources/templates/index.html b/server/login-basic/src/main/resources/templates/index.html
+--- a/server/login-basic/src/main/resources/templates/index.html	(revision cccbca5e395143c2c6e790479250e9439acd7e82)
++++ b/server/login-basic/src/main/resources/templates/index.html	(date 1627822492782)
+@@ -15,20 +15,19 @@
+ 
+     <div class="links">
+ 
+-        <div class="link">
++        <div class="link"  sec:authorize="!isAuthenticated()">
+             <a href="/login">  로그인 </a>
+         </div>
+-        <div class="link">
+-            <a href="/login-error">  로그인 에러  </a>
++        <div class="link"  sec:authorize="isAuthenticated()">
++            <a href="/user-page">  유저 페이지  </a>
+         </div>
+-        <div class="link">
+-            <a href="/access-denied">  접근 에러  </a>
++        <div class="link"  sec:authorize="isAuthenticated()"> <!--유저에게서 관리자가 보이는 것이 문제 .. config에서-->
++            <a href="/admin-page">  관리자 페이지 </a>
+         </div>
+-        <div class="link">
+-            <a href="/user-page">  유저 페이지  </a>
+-        </div>
+-        <div class="link">
+-            <a href="/admin-page">  관리자 로그인 </a>
++        <div class="link"  sec:authorize="isAuthenticated()">
++            <form th:action="@{/logout}" method="post" >
++                <button class="btn btn-info" type="submit">로그아웃</button>
++            </form>
+         </div>
+ 
+     </div>
+Index: .idea/.name
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/.name b/.idea/.name
+new file mode 100644
+--- /dev/null	(date 1627819248890)
++++ b/.idea/.name	(date 1627819248890)
+@@ -0,0 +1,1 @@
++sp-fastcampus-spring-sec
+\ No newline at end of file
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+new file mode 100644
+--- /dev/null	(date 1627819289642)
++++ b/.idea/misc.xml	(date 1627819289642)
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="ExternalStorageConfigurationManager" enabled="true" />
++  <component name="FrameworkDetectionExcludesConfiguration">
++    <file type="web" url="file://$PROJECT_DIR$" />
++  </component>
++  <component name="ProjectRootManager" version="2" languageLevel="JDK_11" default="true" project-jdk-name="11" project-jdk-type="JavaSDK">
++    <output url="file://$PROJECT_DIR$/out" />
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/vcs.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/vcs.xml b/.idea/vcs.xml
+new file mode 100644
+--- /dev/null	(date 1627819026532)
++++ b/.idea/vcs.xml	(date 1627819026532)
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="VcsDirectoryMappings">
++    <mapping directory="" vcs="Git" />
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/runConfigurations.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/runConfigurations.xml b/.idea/runConfigurations.xml
+new file mode 100644
+--- /dev/null	(date 1627819026549)
++++ b/.idea/runConfigurations.xml	(date 1627819026549)
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="RunConfigurationProducerService">
++    <option name="ignoredProducers">
++      <set>
++        <option value="com.android.tools.idea.compose.preview.runconfiguration.ComposePreviewRunConfigurationProducer" />
++      </set>
++    </option>
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/compiler.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/compiler.xml b/.idea/compiler.xml
+new file mode 100644
+--- /dev/null	(date 1627819272555)
++++ b/.idea/compiler.xml	(date 1627819272555)
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="CompilerConfiguration">
++    <annotationProcessing>
++      <profile name="Gradle Imported" enabled="true">
++        <outputRelativeToContentRoot value="true" />
++        <processorPath useClasspath="false">
++          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.16/6dc192c7f93ec1853f70d59d8a6dcf94eb42866/lombok-1.18.16.jar" />
++        </processorPath>
++        <module name="sp-fastcampus-spring-sec.server-basic-test.main" />
++        <module name="sp-fastcampus-spring-sec.server-login-custom-filter.test" />
++        <module name="sp-fastcampus-spring-sec.server-basic-test.test" />
++        <module name="sp-fastcampus-spring-sec.server-login-basic.main" />
++        <module name="sp-fastcampus-spring-sec.server-login-custom-filter.main" />
++        <module name="sp-fastcampus-spring-sec.server-login-basic.test" />
++      </profile>
++    </annotationProcessing>
++    <bytecodeTargetLevel target="11" />
++  </component>
++</project>
+\ No newline at end of file
+Index: server/login-basic/src/main/java/com/sp/fc/web/config/CustomAuthDetails.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/server/login-basic/src/main/java/com/sp/fc/web/config/CustomAuthDetails.java b/server/login-basic/src/main/java/com/sp/fc/web/config/CustomAuthDetails.java
+new file mode 100644
+--- /dev/null	(date 1627823434347)
++++ b/server/login-basic/src/main/java/com/sp/fc/web/config/CustomAuthDetails.java	(date 1627823434347)
+@@ -0,0 +1,22 @@
++package com.sp.fc.web.config;
++
++import org.springframework.security.authentication.AuthenticationDetailsSource;
++import org.springframework.stereotype.Component;
++
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
++import java.time.LocalDateTime;
++
++
++@Component
++public class CustomAuthDetails implements AuthenticationDetailsSource<HttpServletRequest, RequestInfo> {
++
++    @Override
++    public RequestInfo buildDetails(HttpServletRequest request) {
++        return RequestInfo.builder()
++                .remoteIp(request.getRemoteAddr())
++                .sessionId(request.getSession().getId())
++                .loginTime(LocalDateTime.now())
++                .build();
++    }
++}
+Index: server/login-basic/src/main/resources/templates/loginForm.html
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><!DOCTYPE html>\r\n<html lang=\"ko\" xmlns:th=\"http://www.thymeleaf.org\" xmlns:sec=\"http://www.thymeleaf.org/extras/spring-security\">\r\n<head>\r\n    <meta charset=\"UTF-8\">\r\n    <title>Title</title>\r\n    <link rel=\"stylesheet\" th:href=\"@{/css/bootstrap.css}\">\r\n    <link rel=\"stylesheet\" th:href=\"@{/css/login.css}\">\r\n</head>\r\n<body>\r\n\r\n\r\n<div class=\"container center-contents\">\r\n    <div class=\"row\">\r\n        <form class=\"form-signin\" method=\"post\" action=\"/login\">\r\n            <h1 class=\"h3 mb-3 font-weight-normal\"> 로그인 </h1>\r\n            <label for=\"username\" class=\"sr-only\">로그인 아이디</label>\r\n            <input id=\"username\"\r\n                   name=\"username\"\r\n                   class=\"form-control\"\r\n                   placeholder=\"아이디를 입력해 주세요.\"\r\n                   required autofocus>\r\n            <label for=\"password\" class=\"sr-only\">비밀번호</label>\r\n            <input type=\"password\"\r\n                   id=\"password\"\r\n                   name=\"password\"\r\n                   class=\"form-control\"\r\n                   placeholder=\"비밀번호를 입력해 주세요\"\r\n                   required>\r\n            <div class=\"checkbox mb-3\">\r\n                <label>\r\n                    <input type=\"checkbox\" name=\"remember-me\"> 로그인 기억하기\r\n                </label>\r\n            </div>\r\n            <button class=\"btn btn-lg btn-primary btn-block\"  type=\"submit\"> 로그인 </button>\r\n            <div class=\"error-message\" th:if=\"${loginError}\">\r\n                <span> 아이디나 패스워드가 올바르지 않습니다. </span>\r\n            </div>\r\n        </form>\r\n\r\n    </div>\r\n</div>\r\n\r\n<script th:src=\"@{/js/bootstrap.js}\" />\r\n</body>\r\n</html>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/server/login-basic/src/main/resources/templates/loginForm.html b/server/login-basic/src/main/resources/templates/loginForm.html
+--- a/server/login-basic/src/main/resources/templates/loginForm.html	(revision cccbca5e395143c2c6e790479250e9439acd7e82)
++++ b/server/login-basic/src/main/resources/templates/loginForm.html	(date 1627821155023)
+@@ -11,7 +11,7 @@
+ 
+ <div class="container center-contents">
+     <div class="row">
+-        <form class="form-signin" method="post" action="/login">
++        <form class="form-signin" method="post" th:action="@{/login}">
+             <h1 class="h3 mb-3 font-weight-normal"> 로그인 </h1>
+             <label for="username" class="sr-only">로그인 아이디</label>
+             <input id="username"
+Index: .idea/gradle.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/gradle.xml b/.idea/gradle.xml
+new file mode 100644
+--- /dev/null	(date 1627819249088)
++++ b/.idea/gradle.xml	(date 1627819249088)
+@@ -0,0 +1,21 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="GradleMigrationSettings" migrationVersion="1" />
++  <component name="GradleSettings">
++    <option name="linkedExternalProjectsSettings">
++      <GradleProjectSettings>
++        <option name="distributionType" value="DEFAULT_WRAPPED" />
++        <option name="externalProjectPath" value="$PROJECT_DIR$" />
++        <option name="gradleJvm" value="11" />
++        <option name="modules">
++          <set>
++            <option value="$PROJECT_DIR$" />
++            <option value="$PROJECT_DIR$/server/basic-test" />
++            <option value="$PROJECT_DIR$/server/login-basic" />
++            <option value="$PROJECT_DIR$/server/login-custom-filter" />
++          </set>
++        </option>
++      </GradleProjectSettings>
++    </option>
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/jarRepositories.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/jarRepositories.xml b/.idea/jarRepositories.xml
+new file mode 100644
+--- /dev/null	(date 1627819272570)
++++ b/.idea/jarRepositories.xml	(date 1627819272570)
+@@ -0,0 +1,20 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<project version="4">
++  <component name="RemoteRepositoriesConfiguration">
++    <remote-repository>
++      <option name="id" value="central" />
++      <option name="name" value="Maven Central repository" />
++      <option name="url" value="https://repo1.maven.org/maven2" />
++    </remote-repository>
++    <remote-repository>
++      <option name="id" value="jboss.community" />
++      <option name="name" value="JBoss Community repository" />
++      <option name="url" value="https://repository.jboss.org/nexus/content/repositories/public/" />
++    </remote-repository>
++    <remote-repository>
++      <option name="id" value="MavenRepo" />
++      <option name="name" value="MavenRepo" />
++      <option name="url" value="https://repo.maven.apache.org/maven2/" />
++    </remote-repository>
++  </component>
++</project>
+\ No newline at end of file
+Index: .idea/.gitignore
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/.gitignore b/.idea/.gitignore
+new file mode 100644
+--- /dev/null	(date 1627818991772)
++++ b/.idea/.gitignore	(date 1627818991772)
+@@ -0,0 +1,8 @@
++# Default ignored files
++/shelf/
++/workspace.xml
++# Datasource local storage ignored files
++/dataSources/
++/dataSources.local.xml
++# Editor-based HTTP Client requests
++/httpRequests/
+Index: server/login-basic/src/main/java/com/sp/fc/web/config/RequestInfo.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/server/login-basic/src/main/java/com/sp/fc/web/config/RequestInfo.java b/server/login-basic/src/main/java/com/sp/fc/web/config/RequestInfo.java
+new file mode 100644
+--- /dev/null	(date 1627823290885)
++++ b/server/login-basic/src/main/java/com/sp/fc/web/config/RequestInfo.java	(date 1627823290885)
+@@ -0,0 +1,18 @@
++package com.sp.fc.web.config;
++
++import lombok.AllArgsConstructor;
++import lombok.Builder;
++import lombok.Data;
++import lombok.NoArgsConstructor;
++
++import java.time.LocalDateTime;
++
++@Data
++@AllArgsConstructor
++@NoArgsConstructor
++@Builder
++public class RequestInfo {
++    private String remoteIp;
++    private String sessionId;
++    private LocalDateTime loginTime;
++}
