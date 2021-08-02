@@ -10,4 +10,5 @@ public class BasicAuthentionTestApplication {
         SpringApplication.run(BasicAuthentionTestApplication.class, args);
     }
 
+
 }
